@@ -13,7 +13,8 @@ SSID=$(iwgetid -r)
 if [ "$SSID" != "$HOME_WIFI_SSID" ]
 then
 	echo "Not on home wifi! (Current: $SSID). Exiting..."
-	exit 1
+	sleep 2
+	exit 1;
 fi
 
 # just want to backup uni files
