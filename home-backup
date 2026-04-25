@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+if [ "$TERMINAL_CONTEXT" != popup ]
+then
+	kitty --class="floating-popup" --directory "$HOME" -e env TERMINAL_CONTEXT=popup "$0" 2>/dev/null
+	exit 0;
+fi
+
+# runs within popup
+
+SSID=$(iwgetid -r)
+
+if [ "$SSID" != "$HOME_WIFI_SSID" ]
+then
+	echo "Not on home wifi! (Current: $SSID). Exiting..."
+	exit 1
+fi
+
+# just want to backup uni files
+SOURCE="/home/danjel/uni/"
+DEST="${BACKUP_SSH_SERVER}:${BACKUP_SERVER_DIR}/uni/"
+
+echo "--- DRY RUN: Syncing Uni Folder"
+rsync -avh --progress --dry-run "$SOURCE" "$DEST"
+
+echo ""
+read -p "Accept? Y/n " -n 1 -r
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]];
+then
+	echo "Syncing to local backup SSD..."
+	rsync -avh --progress "$SOURCE" "$DEST"
+	echo ""
+	echo "---------------------------------"
+	echo "Sync complete. Press any key to exit"
+	read -n 1 -s
+	exit 0
+else 
+	echo "Syncing cancelled. Press any key to exit"
+	read -n 1 -s
+	exit 1
+fi
