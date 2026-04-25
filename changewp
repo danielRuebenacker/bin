@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# change wallpaper to specified file
+# usage changewp [-i] [FILE]
+# -i: FILE is checked for in ~/Pictures/Wallpaper, otherwise just a regular image file
+
+WALLPAPER_DIR="/home/danjel/Pictures/Wallpapers";
+CURRENT_WP_PATH="${WALLPAPER_DIR}/.current"
+USE_DIR=false
+
+while getops "i" opt; do
+	case $opt in
+		i) USE_DIR=true ;;
+		*) echo: "Usage: changewp [-i] [FILE]"; exit 1 ;;
+	esac
+done
+
+# filename becomes $1
+shift $((OPTIND-1))
+
+FILE="$1"
+
+if [ -z $FILE ]; then 
+	echo "Error: No file specified"
+	exit 1;
+fi 
+
+if [ "$USE_DIR" = true ]; then
+	FULL_PATH="${WALLPAPER_DIR}/${FILE}"
+else
+	# resolve abs path
+    FULL_PATH=$(realpath "$FILE" 2>/dev/null)
+fi
+
+
+if [ ! -f "$FULL_PATH" ]; then
+	echo "'$FULL' does not exist or is not a file."
+	exit 1;
+fi
+
+if ! cmp -s "$FILE_PATH" "$CURRENT_WP_PATH";  then
+	cp "$FILE_PATH" "$CURRENT_WP_PATH"
+	echo "Wallpaper updated to: $(basename "$FULL_PATH")"
+else
+	echo "File is already current background! Reloading swww and wallust..."
+fi
+
+awww img -t none "$CURRENT_WP_PATH"
+wallust run "$CURRENT_WP_PATH"

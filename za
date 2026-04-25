@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+FILE=${1?Error: no file given};
+
+if [ ! -f "$FILE" ]; then
+	echo "File not Found";
+	exit 1;
+fi
+
+# send to background, no output, no job notifs
+command zathura "$FILE" >/dev/null 2>&1 &
+local pid="$!";
+disown "$pid";

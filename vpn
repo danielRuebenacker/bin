@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+case "$1"
+in 
+	up)
+		sudo wg-quick up danjels-laptop
+		;;
+	down) 
+		sudo wg-quick down danjels-laptop
+		;;
+	*)
+		echo "unknown option"
+		;;
+esac

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+timeout=${1:-5}
+
+sudo reflector --country "United Kingdom" --protocol https --latest 20 --sort rate --download-timeout $timeout --save /etc/pacman.d/mirrorlist

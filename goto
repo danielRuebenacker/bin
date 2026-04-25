@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# Configuration
+LINK_FILE="$HOME/.local/share/quicklinks.tsv"
+FOCUS_SCRIPT="/home/danjel/.config/hypr/scripts/hypr-focus.sh" # Path to the script above
+mkdir -p "$(dirname "$LINK_FILE")"
+touch "$LINK_FILE"
+
+ql_open() {
+    selection=$(cut -f1 "$LINK_FILE" | rofi -dmenu -i -p "Go to:")
+
+    if [[ -n "$selection" ]]; then
+        url=$(awk -F'\t' -v sel="$selection" '$1 == sel {print $2}' "$LINK_FILE")
+        
+        if [[ -n "$url" ]]; then
+            # Call the separate focus script
+            bash "$FOCUS_SCRIPT"
+            
+            # Small delay to ensure the window is ready to receive the tab
+            sleep 0.1
+            
+            brave "$url"
+        fi
+    fi
+}
+
+ql_add() {
+    local name="$1"
+    local url="$2"
+
+    # If arguments aren't provided, prompt via Rofi
+    if [[ -z "$name" ]]; then
+        name=$(rofi -dmenu -p "Enter Name/Shortcut:")
+    fi
+    if [[ -z "$url" ]]; then
+        url=$(rofi -dmenu -p "Enter URL:")
+    fi
+
+    [[ -z "$name" || -z "$url" ]] && return 1
+
+    # Check for duplicates and append
+    if grep -q "^$name	" "$LINK_FILE"; then
+        notify-send "Quicklinks" "Error: Shortcut '$name' already exists."
+    else
+        printf "%s\t%s\n" "$name" "$url" >> "$LINK_FILE"
+        notify-send "Quicklinks" "Added $name -> $url"
+    fi
+}
+
+case "$1" in
+    add)  ql_add "$2" "$3" ;;
+    *)    ql_open ;;
+esac
