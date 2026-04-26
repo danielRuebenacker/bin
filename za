@@ -8,6 +8,5 @@ if [ ! -f "$FILE" ]; then
 fi
 
 # send to background, no output, no job notifs
-command zathura "$FILE" >/dev/null 2>&1 &
-local pid="$!";
-disown "$pid";
+{ zathura "$FILE" >/dev/null 2>&1 & } 2>/dev/null
+disown "$!" 2>/dev/null;
