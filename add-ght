@@ -10,16 +10,25 @@ repo_name=""
 
 while getopts "u:t:r:" opt; do
   case $opt in
-    u) username="$OPTARG" ;;
-    t) token="$OPTARG" ;;
-    r) repo_name="$OPTARG" ;;
-    *) echo "Usage: $0 -t <token> -r <repo_name> [-u <username>]"; exit 1 ;;
+    u) 
+		username="$OPTARG"
+		;;
+    t) 
+		token="$OPTARG"
+		;;
+    r) 
+		repo_name="$OPTARG"
+		;;
+    *) 
+		echo "Usage: $0 -t <token> -r <repo_name> [-u <username>]" >&2
+		exit 1
+		;;
   esac
 done
 
 # check they are not null
 if [ -z "$token" ] || [ -z "$repo_name" ]; then
-	echo "Please enter a token and a repo name"
+	echo "Error: Please enter a valid token and repo name." >&2
 	exit 1;
 fi
 
