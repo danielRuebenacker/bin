@@ -10,7 +10,7 @@ fi
 
 SSID=$(iwgetid -r)
 
-if [ "$SSID" != "$HOME_WIFI_SSID" ]
+if [[ "$SSID" != "$HOME_WIFI_SSID" ]]
 then
 	echo "Not on home wifi! (Current: $SSID). Exiting..."
 	sleep 2
