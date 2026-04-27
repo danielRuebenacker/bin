@@ -19,15 +19,15 @@ mkdir -p "$PROJECT_NAME/src/main/resources"
 mkdir -p "$PROJECT_NAME/src/test/java/$PACKAGE_PATH"
 mkdir -p "$PROJECT_NAME/src/test/resources"
 
-cat <<'EOF' > "$PROJECT_NAME/pom.xml"
+cat <<EOF > "$PROJECT_NAME/pom.xml"
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>GROUP_PLACEHOLDER</groupId>
-    <artifactId>ARTIFACT_PLACEHOLDER</artifactId>
+    <groupId>$PACKAGE_NAME</groupId>
+    <artifactId>$PROJECT_NAME</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -35,6 +35,7 @@ cat <<'EOF' > "$PROJECT_NAME/pom.xml"
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
+		<mockito.version>5.23.0</mockito.version>
 		<mainClass></mainClass> 
 	</properties>
 
@@ -42,9 +43,14 @@ cat <<'EOF' > "$PROJECT_NAME/pom.xml"
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
+            <version>\${junit.version}</version>
             <scope>test</scope>
         </dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<version>\${mockito.version}</version>
+		</dependency>
     </dependencies>
 
     <build>
@@ -66,16 +72,13 @@ cat <<'EOF' > "$PROJECT_NAME/pom.xml"
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.2.0</version>
                 <configuration>
-                    <mainClass>${mainClass}</mainClass>
+                    <mainClass>\${mainClass}</mainClass>
                 </configuration>
             </plugin>
         </plugins>
     </build>
 </project>
 EOF
-
-sed -i "s/GROUP_PLACEHOLDER/$PACKAGE_NAME/g" "$PROJECT_NAME/pom.xml"
-sed -i "s/ARTIFACT_PLACEHOLDER/$PROJECT_NAME/g" "$PROJECT_NAME/pom.xml"
 
 cat <<EOF > "$PROJECT_NAME/src/main/java/$PACKAGE_PATH/App.java"
 package $PACKAGE_NAME;
