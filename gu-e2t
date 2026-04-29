@@ -21,7 +21,7 @@ fi
 PDF_TEXT=/tmp/tabletext.$$
 COURSES=/tmp/courses.$$
 USER_COURSES=/tmp/user-courses.$$
-USER_NAME="ruebenacker"
+USER_NAME="Hal"
 # setup
 pdftotext -layout -nopgbrk "$file" "$PDF_TEXT"
 
@@ -38,7 +38,8 @@ sed -i '/^$/d' "$PDF_TEXT"
 sed -i 's/[[:blank:]]\{2,\}/	/g' "$PDF_TEXT"
 
 # the following turns ROOM	Students ... into just Students ..., add % to delimit ranges
-sed -i 's/	[[:alnum:][:space:],:]*Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
+# sed -i 's/	[[:alnum:][:space:],:]*Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
+sed -i 's/	[[:alnum:] ,:]*	\{0,1\}Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
 
 # format ranges into start|end|room
 sed -i -E 's/%([[:alpha:]]+) ?- ?([[:alpha:]])+ ?: ?(.*)%/%\1|\2|\3%/' "$PDF_TEXT"
