@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+#
+# Takes glasgow university exam timetable file and converts to latex table
+# COMPSCI2008_1 Object Oriented Software Eng 2 Thu 30/04/2026 14:00 01:00 On Campus KELVIN HALL: SPORTS HALL 2
+# needs to do different things:
+# clean up input so that just course-id course-name day date time duration in-situ location (easy)
+# determine which location a student is based on the last two columns (hard)
+# put all information into latex table/output (medium)
+#
+# 
+# remove unnecessary inputs:
+# whitespace lines, information/text header
+
+file=${1:?"Please provide a file."}
+
+if [ "$file" != *.pdf ]; then
+	echo "Please provide a .pdf file" >&2;
+	exit 1;
+fi
+
+PDF_TEXT=/tmp/tabletext.$$
+COURSES=/tmp/courses.$$
+USER_COURSES=/tmp/user-courses.$$
+USER_NAME="ruebenacker"
+# setup
+pdftotext -layout -nopgbrk "$file" "$PDF_TEXT"
+
+# temp file access just for us + trap
+umask 077
+trap "exit 1"										HUP INT PIPE QUIT TERM
+trap "rm -f $PDF_TEXT $COURSES $USER_COURSES"		EXIT
+
+# delete bloat
+sed -i '1,/Exam Code/d' "$PDF_TEXT"
+# delete empty lines
+sed -i '/^$/d' "$PDF_TEXT"
+# replace two or more spaces with single spaces
+sed -i 's/[[:blank:]]\{2,\}/	/g' "$PDF_TEXT"
+
+# the following turns ROOM	Students ... into just Students ..., add % to delimit ranges
+sed -i 's/	[[:alnum:][:space:],:]*Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
+
+# format ranges into start|end|room
+sed -i -E 's/%([[:alpha:]]+) ?- ?([[:alpha:]])+ ?: ?(.*)%/%\1|\2|\3%/' "$PDF_TEXT"
+
+# now concat lines with ranges 
+cat "$PDF_TEXT" | 
+	awk '
+		# a range?
+		/^[[:space:]]%/ {
+			gsub(/^[[:space:]]/, "", $0)
+			prefix = prefix " " $0
+			next
+		}
+
+		# literally anything else
+		/^.+$/ {
+			print $0 " " prefix 
+			prefix = ""
+			next
+		}
+		' > "$COURSES"
+
+# let user select courses
+SELECTED_COURSES=$(grep -vE "^[[:space:]]" "$COURSES" | awk -F'\t' '{ print $2 }' | fzf -m)
+
+if [ -z "$SELECTED_COURSES" ]; then
+	echo "No courses selected. Please select one or more courses."
+	exit 1;
+fi
+
+# the big sieve !
+echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
+
+while IFS= read -r line; do
+	if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
+        prefix="${BASH_REMATCH[1]}"
+        ranges="${BASH_REMATCH[2]}"
+        output=$(name-range "$USER_NAME" "$ranges")
+		echo "${prefix}${output}"
+	else 
+		echo "$line"
+	fi
+done < "$USER_COURSES"
+
+
+rm "$PDF_TEXT" "$COURSES" "$USER_COURSES"
