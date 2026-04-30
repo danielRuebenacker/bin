@@ -13,7 +13,7 @@
 
 file=${1:?"Please provide a file."}
 
-if [ "$file" != *.pdf ]; then
+if [[ "$file" != *.pdf ]]; then
 	echo "Please provide a .pdf file" >&2;
 	exit 1;
 fi
@@ -23,9 +23,10 @@ COURSES=/tmp/courses.$$
 USER_COURSES=/tmp/user-courses.$$
 USER_NAME="Hal"
 # setup
+# don't break pages, try to retain layout
 pdftotext -layout -nopgbrk "$file" "$PDF_TEXT"
 
-# temp file access just for us + trap
+# temp file access just for us + trap to delete
 umask 077
 trap "exit 1"										HUP INT PIPE QUIT TERM
 trap "rm -f $PDF_TEXT $COURSES $USER_COURSES"		EXIT
@@ -36,9 +37,10 @@ sed -i '1,/Exam Code/d' "$PDF_TEXT"
 sed -i '/^$/d' "$PDF_TEXT"
 # replace two or more spaces with single spaces
 sed -i 's/[[:blank:]]\{2,\}/	/g' "$PDF_TEXT"
+# the date+time don't tabularise well so separate 12/12/1212 13:00 into 12/12/1212	13:00
+sed -i -E 's#([0-9/]{10}) ([0-9:]{5})#\1\t\2#g' "$PDF_TEXT"
 
 # the following turns ROOM	Students ... into just Students ..., add % to delimit ranges
-# sed -i 's/	[[:alnum:][:space:],:]*Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
 sed -i 's/	[[:alnum:] ,:]*	\{0,1\}Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
 
 # format ranges into start|end|room
@@ -74,15 +76,66 @@ fi
 echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
 
 while IFS= read -r line; do
-	if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
+    if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
         prefix="${BASH_REMATCH[1]}"
         ranges="${BASH_REMATCH[2]}"
-        output=$(name-range "$USER_NAME" "$ranges")
-		echo "${prefix}${output}"
-	else 
-		echo "$line"
-	fi
-done < "$USER_COURSES"
+
+        cleaned=$(sed 's/%[[:space:]]*%/\n/g' <<< "$ranges")
+
+        output="n\a"
+
+        while IFS='|' read -r start_name end_name lab_location; do
+            if { [[ "$USER_NAME" > "$start_name" ]] || [[ "$USER_NAME" == "$start_name" ]]; } &&
+               { [[ "$USER_NAME" < "$end_name" ]] || [[ "$USER_NAME" == "$end_name" ]]; }; then
+                output="$lab_location"
+                break
+            fi
+        done <<< "$cleaned"
+
+        echo "${prefix}${output}"
+    else
+        echo "$line"
+    fi
+done < "$USER_COURSES" > "output.tsv"
+
+sed -i 's/&/\\\&/g' "output.tsv"
+
+cat <<'EOF' > exams.tex
+\documentclass{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[T1]{fontenc}
+
+\begin{document}
+
+\renewcommand{\arraystretch}{1.2}
+
+\begin{tabularx}{\textwidth}{|l|X|l|l|l|l|l|X|X|}
+\hline
+\textbf{Exam Code} &
+\textbf{Exam Name} &
+\textbf{Day} &
+\textbf{Exam Date} &
+\textbf{Exam Start (BST)} &
+\textbf{Exam Duration} &
+\textbf{Online/On Campus} &
+\textbf{Assessment Type / Venue} &
+\textbf{Hall Splits} \\
+\hline
+EOF
+
+while IFS= read -r line; do
+        printf '%s' "$line" |
+            sed 's/\t/ \& /g'
+        printf ' \\\\\n\\hline\n'
+done < output.tsv >> exams.tex
+
+cat <<'EOF' >> exams.tex
+\end{tabularx}
+
+\end{document}
+EOF
 
 
 rm "$PDF_TEXT" "$COURSES" "$USER_COURSES"
