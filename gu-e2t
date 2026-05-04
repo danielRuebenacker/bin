@@ -21,15 +21,19 @@ fi
 PDF_TEXT=/tmp/tabletext.$$
 COURSES=/tmp/courses.$$
 USER_COURSES=/tmp/user-courses.$$
+OUTPUT_TSV=/tmp/output.$$.tsv
+TEX_COMPILE=/tmp/table.$$.tex
+
 USER_NAME="Hal"
+
 # setup
 # don't break pages, try to retain layout
 pdftotext -layout -nopgbrk "$file" "$PDF_TEXT"
 
 # temp file access just for us + trap to delete
 umask 077
-trap "exit 1"										HUP INT PIPE QUIT TERM
-trap "rm -f $PDF_TEXT $COURSES $USER_COURSES"		EXIT
+trap "exit 1"																HUP INT PIPE QUIT TERM
+trap "rm -f $PDF_TEXT $COURSES $USER_COURSES $OUTPUT_TSV $TEX_COMPILE"		EXIT
 
 # delete bloat
 sed -i '1,/Exam Code/d' "$PDF_TEXT"
@@ -44,7 +48,7 @@ sed -i -E 's#([0-9/]{10}) ([0-9:]{5})#\1\t\2#g' "$PDF_TEXT"
 sed -i 's/	[[:alnum:] ,:]*	\{0,1\}Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
 
 # format ranges into start|end|room
-sed -i -E 's/%([[:alpha:]]+) ?- ?([[:alpha:]])+ ?: ?(.*)%/%\1|\2|\3%/' "$PDF_TEXT"
+sed -i -E 's/%([[:alpha:]]+) ?- ?([[:alpha:]]+) ?: ?(.*)%/%\1|\2|\3%/' "$PDF_TEXT"
 
 # now concat lines with ranges 
 cat "$PDF_TEXT" | 
@@ -74,6 +78,7 @@ fi
 
 # the big sieve !
 echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
+cat "$USER_COURSES"
 
 while IFS= read -r line; do
     if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
@@ -96,46 +101,53 @@ while IFS= read -r line; do
     else
         echo "$line"
     fi
-done < "$USER_COURSES" > "output.tsv"
+done < "$USER_COURSES" > "$OUTPUT_TSV"
 
-sed -i 's/&/\\\&/g' "output.tsv"
+# sed -i 's/&/\\\&/g' "$OUTPUT_TSV"
 
-cat <<'EOF' > exams.tex
-\documentclass{article}
-\usepackage[a4paper,margin=1in]{geometry}
-\usepackage{tabularx}
-\usepackage{array}
+cat <<'EOF' > "$TEX_COMPILE"
+\documentclass[11pt, a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+% Adjusted margins to 0.75in to allow the table to be physically wider on the page
+\usepackage[margin=0.75in]{geometry} 
+\usepackage{tabularx}            
+\usepackage{booktabs}            
+\usepackage{ragged2e}
+\usepackage[monochrome]{xcolor} 
+
+\newcolumntype{L}{>{\RaggedRight\arraybackslash}X}
 
 \begin{document}
 
-\renewcommand{\arraystretch}{1.2}
+\section*{Exam Schedule}
 
-\begin{tabularx}{\textwidth}{|l|X|l|l|l|l|l|X|X|}
-\hline
-\textbf{Exam Code} &
-\textbf{Exam Name} &
-\textbf{Day} &
-\textbf{Exam Date} &
-\textbf{Exam Start (BST)} &
-\textbf{Exam Duration} &
-\textbf{Online/On Campus} &
-\textbf{Assessment Type / Venue} &
-\textbf{Hall Splits} \\
-\hline
+\noindent
+% Increased from 1.5 to 1.8 for more space between rows
+\renewcommand{\arraystretch}{1.8}
+\small
+% tabularx with \textwidth ensures it spans the full width of the margins
+\begin{tabularx}{\textwidth}{ll llll l L}
+    \toprule
+    \textbf{Code} & \textbf{Course} & \textbf{Day} & \textbf{Date} & \textbf{Start} & \textbf{Dur.} & \textbf{Type} & \textbf{Location} \\
+    \midrule
 EOF
 
 while IFS= read -r line; do
-        printf '%s' "$line" |
-            sed 's/\t/ \& /g'
-        printf ' \\\\\n\\hline\n'
-done < output.tsv >> exams.tex
+    printf '%s' "$line" | sed 's/_/\\_/g; s/\t/ \& /g' >> "$TEX_COMPILE"
+    printf ' \\\\\n' >> "$TEX_COMPILE"
+done < "$OUTPUT_TSV"
 
-cat <<'EOF' >> exams.tex
+cat <<'EOF' >> "$TEX_COMPILE"
+    \bottomrule
 \end{tabularx}
 
 \end{document}
 EOF
 
+# Compile and clean up
+pdflatex -interaction=nonstopmode "$TEX_COMPILE" && rm exams.aux exams.log "$TEX_COMPILE"
 
 rm "$PDF_TEXT" "$COURSES" "$USER_COURSES"
