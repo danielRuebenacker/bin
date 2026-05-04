@@ -12,11 +12,11 @@
 # whitespace lines, information/text header
 
 # get username
-USERNAME=HAL
+USER_NAME=HAL
 while getopts ":n:" opt
 do
 	case $opt in
-		n) 		USERNAME=$OPTARG
+		n) 		USER_NAME=$OPTARG
 				;;
 		'?')	echo "$0: invalid option -$OPTARG" >&2
 				echo "Usage: $0 [-n Last Name] [files ...]" >&2
@@ -108,8 +108,12 @@ cat "$PDF_TEXT" |
 		}
 		' > "$COURSES"
 
+# remove course id (can reuse TMP_TEXT)
+cut -d "	" -f 2- "$COURSES" > "$TMP_TEXT"
+cat "$TMP_TEXT" > "$COURSES"
+
 # let user select courses
-SELECTED_COURSES=$(grep -vE "^[[:space:]]" "$COURSES" | awk -F'\t' '{ print $2 }' | fzf -m)
+SELECTED_COURSES=$(grep -vE "^[[:space:]]" "$COURSES" | awk -F'\t' '{ print $1 }' | fzf -m)
 
 if [ -z "$SELECTED_COURSES" ]; then
 	echo "No courses selected. Please select one or more courses."
@@ -142,16 +146,12 @@ while IFS= read -r line; do
     fi
 done < "$USER_COURSES" > "$OUTPUT_TSV"
 
-# sed -i 's/&/\\\&/g' "$OUTPUT_TSV"
-
 cat <<'EOF' > "$TEX_COMPILE"
 \documentclass[11pt, a4paper]{article}
 
-% --- Packages ---
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-% Adjusted margins to 0.75in to allow the table to be physically wider on the page
-\usepackage[margin=0.75in]{geometry} 
+\usepackage[margin=0.5in]{geometry} % Narrower margins to give more room
 \usepackage{tabularx}            
 \usepackage{booktabs}            
 \usepackage{ragged2e}
@@ -164,18 +164,17 @@ cat <<'EOF' > "$TEX_COMPILE"
 \section*{Exam Schedule}
 
 \noindent
-% Increased from 1.5 to 1.8 for more space between rows
 \renewcommand{\arraystretch}{1.8}
 \small
-% tabularx with \textwidth ensures it spans the full width of the margins
-\begin{tabularx}{\textwidth}{ll llll l L}
+% Using L for Code, Course, and Location to ensure wrapping
+\begin{tabularx}{\textwidth}{L c c c c c L}
     \toprule
-    \textbf{Code} & \textbf{Course} & \textbf{Day} & \textbf{Date} & \textbf{Start} & \textbf{Dur.} & \textbf{Type} & \textbf{Location} \\
+    \textbf{Course} & \textbf{Day} & \textbf{Date} & \textbf{Start} & \textbf{Dur.} & \textbf{Type} & \textbf{Location} \\
     \midrule
 EOF
 
 while IFS= read -r line; do
-    printf '%s' "$line" | sed 's/_/\\_/g; s/\t/ \& /g' >> "$TEX_COMPILE"
+    printf '%s' "$line" | sed 's/_/\\_/g; s/&/\\&/g; s/\t/ \& /g' >> "$TEX_COMPILE"
     printf ' \\\\\n' >> "$TEX_COMPILE"
 done < "$OUTPUT_TSV"
 
