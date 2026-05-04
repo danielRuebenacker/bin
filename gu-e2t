@@ -11,32 +11,72 @@
 # remove unnecessary inputs:
 # whitespace lines, information/text header
 
-file=${1:?"Please provide a file."}
+# get username
+USERNAME=HAL
+while getopts ":n:" opt
+do
+	case $opt in
+		n) 		USERNAME=$OPTARG
+				;;
+		'?')	echo "$0: invalid option -$OPTARG" >&2
+				echo "Usage: $0 [-n Last Name] [files ...]" >&2
+				exit 1
+				;;
+	esac
+done
+# shift args
+shift $((OPTIND - 1))
 
-if [[ "$file" != *.pdf ]]; then
-	echo "Please provide a .pdf file" >&2;
-	exit 1;
+
+files=()
+for file in "$@"
+do
+	if [[ "$file" != *.pdf ]]; then
+		echo "Skipping '$file' : Not a .pdf file" >&2;
+	else 
+		files+=("$file")
+	fi
+done
+
+if [ ${#files[@]} -eq 0 ]; then
+    echo "No valid PDF files provided." >&2
+    exit 1
 fi
 
-PDF_TEXT=/tmp/tabletext.$$
-COURSES=/tmp/courses.$$
-USER_COURSES=/tmp/user-courses.$$
-OUTPUT_TSV=/tmp/output.$$.tsv
-TEX_COMPILE=/tmp/table.$$.tex
+# file=${1:?"Please provide a file."}
+#
+# if [[ "$file" != *.pdf ]]; then
+# 	echo "Please provide a .pdf file" >&2;
+# 	exit 1;
+# fi
 
-USER_NAME="Hal"
+# Create temporary build directory
+BUILD_DIR=$(mktemp -d)
+TMP_TEXT="$BUILD_DIR/tmp_text"
+PDF_TEXT="$BUILD_DIR/tabletext"
+COURSES="$BUILD_DIR/courses"
+USER_COURSES="$BUILD_DIR/user-courses"
+OUTPUT_TSV="$BUILD_DIR/output.tsv"
+TEX_COMPILE="$BUILD_DIR/table.tex"
 
-# setup
-# don't break pages, try to retain layout
-pdftotext -layout -nopgbrk "$file" "$PDF_TEXT"
+
+for pdf in "${files[@]}"; do
+    echo "Processing $pdf..."
+    # Use "$pdf", not "$file"
+    if pdftotext -layout -nopgbrk "$pdf" "$TMP_TEXT"; then
+        # delete bloat and append
+        sed -i '1,/Exam Code/d' "$TMP_TEXT"
+        cat "$TMP_TEXT" >> "$PDF_TEXT"
+    else
+        echo "Error: Could not process $pdf" >&2
+    fi
+done
 
 # temp file access just for us + trap to delete
 umask 077
-trap "exit 1"																HUP INT PIPE QUIT TERM
-trap "rm -f $PDF_TEXT $COURSES $USER_COURSES $OUTPUT_TSV $TEX_COMPILE"		EXIT
+trap "exit 1"					HUP INT PIPE QUIT TERM
+trap "rm -rf $BUILD_DIR"		EXIT
 
-# delete bloat
-sed -i '1,/Exam Code/d' "$PDF_TEXT"
 # delete empty lines
 sed -i '/^$/d' "$PDF_TEXT"
 # replace two or more spaces with single spaces
@@ -78,7 +118,6 @@ fi
 
 # the big sieve !
 echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
-cat "$USER_COURSES"
 
 while IFS= read -r line; do
     if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
@@ -87,7 +126,7 @@ while IFS= read -r line; do
 
         cleaned=$(sed 's/%[[:space:]]*%/\n/g' <<< "$ranges")
 
-        output="n\a"
+        output="n/a"
 
         while IFS='|' read -r start_name end_name lab_location; do
             if { [[ "$USER_NAME" > "$start_name" ]] || [[ "$USER_NAME" == "$start_name" ]]; } &&
@@ -148,6 +187,11 @@ cat <<'EOF' >> "$TEX_COMPILE"
 EOF
 
 # Compile and clean up
-pdflatex -interaction=nonstopmode "$TEX_COMPILE" && rm exams.aux exams.log "$TEX_COMPILE"
+pdflatex -interaction=nonstopmode -output-directory="$BUILD_DIR" "$TEX_COMPILE" > /dev/null 2>&1
 
-rm "$PDF_TEXT" "$COURSES" "$USER_COURSES"
+if [ -f "$BUILD_DIR/table.pdf" ]; then
+    mv "$BUILD_DIR/table.pdf" "./exams.pdf"
+    echo "Success: exams.pdf generated."
+else
+    echo "Error: PDF generation failed."
+fi
