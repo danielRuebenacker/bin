@@ -2,7 +2,8 @@
 
 # Takes glasgow university exam timetable file and processes it. Can convert to TSV or latex table.
 
-usage() {
+usage()
+{
 	cat <<EOF
 Usage: $(basename "$0") [-pth] [-n last-name] [files]
 	-P              do NOT generate a pdf file with relevant data in a table
@@ -17,6 +18,12 @@ EOF
 if [ -z $1 ]; then
 	usage
 fi
+
+
+le() {
+	# returns $1 <= $2 lexicographically
+	[ "$(printf '%s\n%s' "$1" "$2" | sort | head -n1)" = "$1" ]
+}
 
 # get username
 USER_NAME=HAL
@@ -141,11 +148,11 @@ while IFS= read -r line; do
         output="n/a"
 
         while IFS='|' read -r start_name end_name lab_location; do
-            if { [[ "$USER_NAME" > "$start_name" ]] || [[ "$USER_NAME" == "$start_name" ]]; } &&
-               { [[ "$USER_NAME" < "$end_name" ]] || [[ "$USER_NAME" == "$end_name" ]]; }; then
-                output="$lab_location"
-                break
-            fi
+			# place and two lines, sort it and check which name appears first!
+			if le "$start_name" "$USER_NAME" && le "$USER_NAME" "$end_name"; then
+				output="$lab_location"
+				break
+			fi
         done <<< "$cleaned"
 
         echo "${prefix}${output}"
