@@ -1,26 +1,40 @@
 #!/usr/bin/env bash
-#
-# Takes glasgow university exam timetable file and converts to latex table
-# COMPSCI2008_1 Object Oriented Software Eng 2 Thu 30/04/2026 14:00 01:00 On Campus KELVIN HALL: SPORTS HALL 2
-# needs to do different things:
-# clean up input so that just course-id course-name day date time duration in-situ location (easy)
-# determine which location a student is based on the last two columns (hard)
-# put all information into latex table/output (medium)
-#
-# 
-# remove unnecessary inputs:
-# whitespace lines, information/text header
+
+# Takes glasgow university exam timetable file and processes it. Can convert to TSV or latex table.
+
+usage() {
+	cat <<EOF
+Usage: $(basename "$0") [-pth] [-n last-name] [files]
+	-P              do NOT generate a pdf file with relevant data in a table
+	-t              generate a tsv file with relevant data
+	-n last-name    user's last name, used to determine exam room
+	-h              help
+	files           Glasgow university exam timetable files
+EOF
+	exit 1
+}
+
+if [ -z $1 ]; then
+	usage
+fi
 
 # get username
 USER_NAME=HAL
-while getopts ":n:" opt
+PDF=true
+TSV=
+while getopts ":n:lth" opt
 do
 	case $opt in
 		n) 		USER_NAME=$OPTARG
 				;;
+		P)		PDF=false
+				;;
+		t)		TSV=true
+				;;
+		h)		usage
+				;;
 		'?')	echo "$0: invalid option -$OPTARG" >&2
-				echo "Usage: $0 [-n Last Name] [files ...]" >&2
-				exit 1
+				usage
 				;;
 	esac
 done
@@ -43,14 +57,7 @@ if [ ${#files[@]} -eq 0 ]; then
     exit 1
 fi
 
-# file=${1:?"Please provide a file."}
-#
-# if [[ "$file" != *.pdf ]]; then
-# 	echo "Please provide a .pdf file" >&2;
-# 	exit 1;
-# fi
-
-# Create temporary build directory
+# temporary build dir
 BUILD_DIR=$(mktemp -d)
 TMP_TEXT="$BUILD_DIR/tmp_text"
 PDF_TEXT="$BUILD_DIR/tabletext"
@@ -124,6 +131,7 @@ fi
 echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
 
 while IFS= read -r line; do
+	# lines with ranges % ... %
     if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
         prefix="${BASH_REMATCH[1]}"
         ranges="${BASH_REMATCH[2]}"
@@ -146,6 +154,11 @@ while IFS= read -r line; do
     fi
 done < "$USER_COURSES" > "$OUTPUT_TSV"
 
+if [ "$TSV" = true ]; then
+	cp "$OUTPUT_TSV" ./courses.tsv
+fi
+
+if [ "$PDF" = true ]; then
 cat <<'EOF' > "$TEX_COMPILE"
 \documentclass[11pt, a4paper]{article}
 
@@ -168,29 +181,32 @@ cat <<'EOF' > "$TEX_COMPILE"
 \small
 % Using L for Code, Course, and Location to ensure wrapping
 \begin{tabularx}{\textwidth}{L c c c c c L}
-    \toprule
-    \textbf{Course} & \textbf{Day} & \textbf{Date} & \textbf{Start} & \textbf{Dur.} & \textbf{Type} & \textbf{Location} \\
-    \midrule
+	\toprule
+	\textbf{Course} & \textbf{Day} & \textbf{Date} & \textbf{Start} & \textbf{Dur.} & \textbf{Type} & \textbf{Location} \\
+	\midrule
 EOF
 
-while IFS= read -r line; do
-    printf '%s' "$line" | sed 's/_/\\_/g; s/&/\\&/g; s/\t/ \& /g' >> "$TEX_COMPILE"
-    printf ' \\\\\n' >> "$TEX_COMPILE"
-done < "$OUTPUT_TSV"
+	while IFS= read -r line; do
+		# escape & and _, add newline
+		printf '%s' "$line" | sed 's/_/\\_/g; s/&/\\&/g; s/\t/ \& /g' >> "$TEX_COMPILE"
+		printf ' \\\\\n' >> "$TEX_COMPILE"
+	done < "$OUTPUT_TSV"
 
 cat <<'EOF' >> "$TEX_COMPILE"
-    \bottomrule
+	\bottomrule
 \end{tabularx}
 
 \end{document}
 EOF
 
-# Compile and clean up
-pdflatex -interaction=nonstopmode -output-directory="$BUILD_DIR" "$TEX_COMPILE" > /dev/null 2>&1
+	# compile
+	pdflatex -interaction=nonstopmode -output-directory="$BUILD_DIR" "$TEX_COMPILE" > /dev/null 2>&1
 
-if [ -f "$BUILD_DIR/table.pdf" ]; then
-    mv "$BUILD_DIR/table.pdf" "./exams.pdf"
-    echo "Success: exams.pdf generated."
-else
-    echo "Error: PDF generation failed."
-fi
+	# if anything generated
+	if [ -f "$BUILD_DIR/table.pdf" ]; then
+		mv "$BUILD_DIR/table.pdf" "./exams.pdf"
+		echo "Success: exams.pdf generated."
+	else
+		echo "Error: PDF generation failed."
+	fi
+fi;
