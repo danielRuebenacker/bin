@@ -20,6 +20,14 @@ if [ -z $1 ]; then
 	usage
 fi
 
+# deps: fzf, pdftotext
+for cmd in fzf pdftotext; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: $cmd is required but not installed." >&2
+        exit 1
+    fi
+done
+
 le() {
 	# returns $1 <= $2 lexicographically
 	[ "$(printf '%s\n%s' "$1" "$2" | sort | head -n1)" = "$1" ]
@@ -47,6 +55,13 @@ do
 done
 # shift args
 shift $((OPTIND - 1))
+
+if [ "$PDF" = true ]; then
+    if ! command -v pdflatex >/dev/null 2>&1; then
+        echo "Error: pdflatex is required if you want to make a pdf." >&2
+        exit 1
+    fi
+fi;
 
 # temporary build dir
 BUILD_DIR=$(mktemp -d)
@@ -83,7 +98,7 @@ for file in "$@"; do
 	esac
 done
 
-# this is where the magik happens:
+# this is where the magic happens:
 # delete empty lines
 # replace two or more spaces with single spaces
 # the date+time don't tabularise well so separate 12/12/1212 13:00 into 12/12/1212\t13:00
@@ -131,27 +146,30 @@ fi
 echo "$SELECTED_COURSES" | grep -F -f - "$COURSES" > "$USER_COURSES"
 
 while IFS= read -r line; do
-	# lines with ranges % ... %
-    if [[ "$line" =~ ^([^%]*)%(.+)%$ ]]; then
-        prefix="${BASH_REMATCH[1]}"
-        ranges="${BASH_REMATCH[2]}"
+    case "$line" in
+        *%*%*)
+			# everything up to %
+			prefix=$(echo "$line" | sed 's/%.*//')
+			# everything between first and last %
+			ranges=$(echo "$line" | sed 's/^[^%]*%\(.*\)%$/\1/')
 
-        cleaned=$(sed 's/%[[:space:]]*%/\n/g' <<< "$ranges")
+            output=$(printf '%s' "$ranges" | sed 's/%[[:space:]]*%/\n/g' | (
+                found="n/a"
+                while IFS='|' read -r start_name end_name room; do
+                    if le "$start_name" "$USER_NAME" && le "$USER_NAME" "$end_name"; then
+                        found="$room"
+                        break
+                    fi
+                done
+                printf '%s' "$found"
+            ))
 
-        output="n/a"
-
-        while IFS='|' read -r start_name end_name lab_location; do
-			# place and two lines, sort it and check which name appears first!
-			if le "$start_name" "$USER_NAME" && le "$USER_NAME" "$end_name"; then
-				output="$lab_location"
-				break
-			fi
-        done <<< "$cleaned"
-
-        echo "${prefix}${output}"
-    else
-        echo "$line"
-    fi
+            printf '%s%s\n' "$prefix" "$output"
+            ;;
+        *)
+            printf '%s\n' "$line"
+            ;;
+    esac
 done < "$USER_COURSES" > "$OUTPUT_TSV"
 
 if [ "$TSV" = true ]; then
