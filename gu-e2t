@@ -71,12 +71,10 @@ for file in "$@"; do
 	case "$file" in 
 		*.pdf)
 			echo "Processing $file..."
-			if pdftotext -layout -nopgbrk "$file" "$TMP_TEXT"; then
-				# delete bloat and append
-				sed -i '1,/Exam Code/d' "$TMP_TEXT"
-				cat "$TMP_TEXT" >> "$PDF_TEXT"
+			if pdftotext -layout -nopgbrk "$file" - | sed '1,/Exam Code/d' >> "$PDF_TEXT"; then
+				:
 			else
-				echo "Error: Could not process $pdf" >&2
+				echo "Error: Could not process $file" >&2
 			fi
 			;;
 		*)
@@ -85,18 +83,19 @@ for file in "$@"; do
 	esac
 done
 
+# this is where the magik happens:
 # delete empty lines
-sed -i '/^$/d' "$PDF_TEXT"
 # replace two or more spaces with single spaces
-sed -i 's/[[:blank:]]\{2,\}/	/g' "$PDF_TEXT"
-# the date+time don't tabularise well so separate 12/12/1212 13:00 into 12/12/1212	13:00
-sed -i -E 's#([0-9/]{10}) ([0-9:]{5})#\1\t\2#g' "$PDF_TEXT"
-
-# the following turns ROOM	Students ... into just Students ..., add % to delimit ranges
-sed -i 's/	[[:alnum:] ,:]*	\{0,1\}Students[[:space:]]\(.*\)$/	%\1%/' "$PDF_TEXT"
-
-# format ranges into start|end|room
-sed -i -E 's/%([[:alpha:]]+) ?- ?([[:alpha:]]+) ?: ?(.*)%/%\1|\2|\3%/' "$PDF_TEXT"
+# the date+time don't tabularise well so separate 12/12/1212 13:00 into 12/12/1212\t13:00
+# turn ROOM	Students ... into just Students ..., add % to delimit ranges
+# format ranges into %start|end|room%
+sed -E '
+/^$/d
+s/[[:blank:]]{2,}/	/g
+s#([0-9/]{10}) ([0-9:]{5})#\1	\2#g
+s/	[[:alnum:] ,:]*	{0,1}Students[[:space:]](.*)$/	%\1%/
+s/%([[:alpha:]]+) ?- ?([[:alpha:]]+) ?: ?(.*)%/%\1|\2|\3%/
+' "$PDF_TEXT" > "$TMP_TEXT" && mv "$TMP_TEXT" "$PDF_TEXT"
 
 # now concat lines with ranges 
 cat "$PDF_TEXT" | 
