@@ -168,7 +168,7 @@ main() {
 	PDF=true
 	TSV=false
 	CAL=false
-	while getopts ":n:ltch" opt
+	while getopts ":n:Ptch" opt
 	do
 		case $opt in
 			n) 		USER_NAME=$OPTARG
@@ -288,7 +288,7 @@ main() {
 				# everything between first and last %
 				ranges=$(echo "$line" | sed 's/^[^%]*%\(.*\)%$/\1/')
 
-				output=$(printf '%s' "$ranges" | sed 's/%[[:space:]]*%/\n/g' | (
+				output=$(printf '%s\n' "$ranges" | sed 's/%[[:space:]]*%/\n/g' | (
 					found="n/a"
 					while IFS='|' read -r start_name end_name room; do
 						if le "$start_name" "$USER_NAME" && le "$USER_NAME" "$end_name"; then
