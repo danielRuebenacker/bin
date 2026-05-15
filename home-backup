@@ -2,7 +2,7 @@
 
 if [ "$TERMINAL_CONTEXT" != popup ]
 then
-	kitty --class="floating-popup" --directory "$HOME" -e env TERMINAL_CONTEXT=popup "$0" 2>/dev/null
+	kitty --class="floating-popup" --directory "$HOME" -e env TERMINAL_CONTEXT=popup "$0" "$@" 2>/dev/null
 	exit 0;
 fi
 
@@ -18,8 +18,10 @@ then
 fi
 
 # just want to backup uni files
-SOURCE="/home/danjel/uni/"
-DEST="${BACKUP_SSH_SERVER}:${BACKUP_SERVER_DIR}/uni/"
+SOURCE="${1:-/home/danjel/uni/}"
+# create it
+ssh "$BACKUP_SSH_SERVER" "mkdir -p \"${BACKUP_SERVER_DIR}/${SOURCE#$HOME}\""
+DEST="${BACKUP_SSH_SERVER}:${BACKUP_SERVER_DIR}/${SOURCE#$HOME}"
 
 echo "--- DRY RUN: Syncing Uni Folder"
 rsync -avh --progress --dry-run "$SOURCE" "$DEST"
