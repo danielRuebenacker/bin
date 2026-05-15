@@ -1,0 +1,20 @@
+#!/bin/sh
+
+SAVE_DIR="/home/danjel/Videos/Recordings"
+FILENAME="${SAVE_DIR}recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
+
+if pgrep -x "wf-recorder" > /dev/null; then
+    pkill -INT wf-recorder
+    notify-send "Recording" "Recording stopped and saved to $SAVE_DIR" -i video-display
+    exit 0
+fi
+
+GEOM=$(slurp -b "#00000044" -c "#8839ef" -w 2)
+
+if [ -n "$GEOM" ]; then
+    notify-send "Recording" "Recording started..." -i video-display
+    
+    wf-recorder -g "$GEOM" -a -c libx264 -p yuv420p -f "$FILENAME"
+else
+    notify-send "Recording" "Selection cancelled" -i dialog-error
+fi
