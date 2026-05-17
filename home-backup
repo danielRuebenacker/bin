@@ -20,8 +20,8 @@ fi
 # just want to backup uni files
 SOURCE="${1:-/home/danjel/uni/}"
 # create it
-ssh "$BACKUP_SSH_SERVER" "mkdir -p \"${BACKUP_SERVER_DIR}/${SOURCE#$HOME}\""
-DEST="${BACKUP_SSH_SERVER}:${BACKUP_SERVER_DIR}/${SOURCE#$HOME}"
+ssh "$BACKUP_SSH_SERVER" "[ -d $SOURCE ] || mkdir -p \"${BACKUP_SERVER_DIR}/${SOURCE#$HOME}\""
+DEST="${2:-${BACKUP_SSH_SERVER}:${BACKUP_SERVER_DIR}/${SOURCE#$HOME}}"
 
 echo "--- DRY RUN: Syncing Uni Folder"
 rsync -avh --progress --dry-run "$SOURCE" "$DEST"
