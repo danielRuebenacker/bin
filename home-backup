@@ -8,13 +8,16 @@ fi
 
 # runs within popup
 
-SSID=$(iwgetid -r)
-
-if [[ "$SSID" != "$HOME_WIFI_SSID" ]]
-then
-	echo "Not on home wifi! (Current: $SSID). Exiting..."
-	sleep 2
-	exit 1;
+# check if host is up
+if ssh \
+	-o BatchMode=yes \
+	-o ConnectTimeout=10 \
+	"$BACKUP_SSH_SERVER" true; then
+    echo "Backup server reachable"
+else
+    echo "Backup server unreachable. Exiting..."
+	sleep 2;
+    exit 1
 fi
 
 # just want to backup uni files
